@@ -1,71 +1,128 @@
-Dynoraptor
-==============
+# Dynoraptor
 
-The DynamoDB Migrations Tool Command Line Interface (CLI).
+A command-line tool for managing DynamoDB migrations. Built on [Umzug](https://github.com/sequelize/umzug), Dynoraptor tracks executed migrations in DynamoDB and provides commands to apply, inspect and roll back changes.
 
-Table of Contents
------------------
-- [Installation](#installation)
-- [Setup](#Setup)
-- [Usage](#Usage)
-- [Documentation](#documentation)
+## Features
 
+- **Migration tracking:** Stores migration history in a DynamoDB table.
+- **Migration lifecycle:** Apply pending migrations, inspect their status and roll back changes.
+- **Umzug compatibility:** Uses the familiar Umzug migration schema.
+- **Flexible configuration:** Configure migrations and AWS settings through CLI options or environment variables.
+- **TypeScript support:** Generate TypeScript migration files.
 
-Installation
-------------
+## Installation
 
-Make sure you have [AWS-SDK](https://aws.amazon.com/sdk-for-node-js/) installed and configured properly. Then install the Dynamit CLI to be used in your project with
+Install Dynoraptor as a development dependency:
 
 ```bash
-$ npm install --save-dev @produce8/dynoraptor-cli
+npm install --save-dev @produce8/dynoraptor-cli
 ```
 
-And then you should be able to run the CLI with
+Run the CLI with `npx`:
 
 ```bash
-$ npx dynoraptor --help
+npx dynoraptor --help
 ```
 
-Migration records are supposed to be stored in the DynamoDB table with the `table-name` (`"migrations"` by default) and primary key `attribute-name` (`"name"` by default) defined as optional cli options. The tool cannot create the table for you yet, so make sure you created it properly. See [Creating a Table Developer Guide](https://docs.amazonaws.cn/en_us/amazondynamodb/latest/developerguide/WorkingWithTables.Basics.html#WorkingWithTables.Basics.CreateTable)
+## Configuration
 
+Dynoraptor can be configured through command-line options or environment variables in a `.env` file.
 
-Setup
------
+Example `.env`:
 
-There are two patterns of use for this tool. Configuration can be provided via the command line arguments, or with the use of
-a `.env` file. E.g:
-```
+```dotenv
 MIGRATIONS_PATH=migrations
 AWS_ACCESS_KEY=YOUR_AWS_ACCESS_KEY
 AWS_SECRET_KEY=YOUR_AWS_SECRET_KEY
 AWS_REGION=us-west-2
-DYNAMO_ENDPOINT_URL=YOUR_DYNAMO_ENDPOINT
+DYNAMO_ENDPOINT_URL=
 MIGRATION_TABLE_NAME=migrations
 MIGRATION_PRIMARY_KEY=name
 TYPESCRIPT=false
 ```
 
-Usage
------
+| Variable                | Description                                              |
+| ----------------------- | -------------------------------------------------------- |
+| `MIGRATIONS_PATH`       | Directory containing migration files                     |
+| `AWS_ACCESS_KEY`        | AWS access key                                           |
+| `AWS_SECRET_KEY`        | AWS secret key                                           |
+| `AWS_REGION`            | AWS region                                               |
+| `DYNAMO_ENDPOINT_URL`   | Optional DynamoDB endpoint, useful for local development |
+| `MIGRATION_TABLE_NAME`  | DynamoDB table used to store migration history           |
+| `MIGRATION_PRIMARY_KEY` | Partition key attribute for migration records            |
+| `TYPESCRIPT`            | Generate TypeScript migration files when enabled         |
 
+Dynoraptor expects the migration tracking table to exist before running migrations. Create the table in DynamoDB with a partition key matching `MIGRATION_PRIMARY_KEY`. The default table name is `migrations`, and the default partition key is `name`.
+
+AWS credentials and permissions must allow the CLI to access the configured DynamoDB table.
+
+## Usage
+
+### Generate a migration
+
+Create a migration file with a descriptive name:
+
+```bash
+npx dynoraptor migration:generate --name add-user-index
 ```
-npx dynoraptor [command]
 
-Commands:
-  dynoraptor migrate                        Run pending migrations
-  dynoraptor migrate:status                 List the status of all migrations
-  dynoraptor migrate:undo                   Reverts a migration
-  dynoraptor migrate:undo:all               Revert all migrations ran
-  dynoraptor migration:generate             Generates a new migration file       [aliases: migration:create]
+The `migration:create` command is also available as an alias.
 
-Options:
-  --version  Show version number                                         [boolean]
-  --help     Show help                                                   [boolean]
+### Run pending migrations
+
+```bash
+npx dynoraptor migrate
 ```
 
+### Check migration status
 
-Documentation
--------------
+```bash
+npx dynoraptor migrate:status
+```
 
-- [CLI Options](docs/README.md)
-- [Frequently Asked Questions](docs/FAQ.md)
+### Roll back a migration
+
+```bash
+npx dynoraptor migrate:undo
+```
+
+### Roll back all migrations
+
+```bash
+npx dynoraptor migrate:undo:all
+```
+
+## Writing migrations
+
+Dynoraptor uses the [Umzug migration schema](https://github.com/sequelize/umzug). Each migration exports an object with `up` and `down` functions.
+
+```javascript
+module.exports = {
+  up: function (dynamodb, done) {
+    // Apply the migration.
+    done();
+  },
+
+  down: function (dynamodb) {
+    return new Promise(function (resolve, reject) {
+      // Revert the migration.
+      resolve();
+    });
+  },
+};
+```
+
+The `dynamodb` argument provides access to the DynamoDB client used by the migration.
+
+Migration functions can use either a callback or return a Promise to handle asynchronous work. When using the callback, call it after the operation completes. Passing an error to the callback signals a failed migration.
+
+Set the `TYPESCRIPT` configuration option to generate TypeScript migration files instead.
+
+## Documentation
+
+- [CLI options and migration schema](docs/README.md)
+- [Frequently asked questions](docs/FAQ.md)
+
+## License
+
+[MIT](LICENSE)
